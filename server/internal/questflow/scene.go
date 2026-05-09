@@ -27,10 +27,11 @@ func (h *QuestHandler) isSceneAhead(newSceneId, currentHeadId int32) bool {
 }
 
 func (h *QuestHandler) advanceMainFlowScene(user *store.UserState, questId, sceneId int32) {
-	user.MainQuest.CurrentQuestSceneId = sceneId
-	if h.isSceneAhead(sceneId, user.MainQuest.HeadQuestSceneId) {
-		user.MainQuest.HeadQuestSceneId = sceneId
+	if !h.isSceneAhead(sceneId, user.MainQuest.HeadQuestSceneId) {
+		return
 	}
+	user.MainQuest.CurrentQuestSceneId = sceneId
+	user.MainQuest.HeadQuestSceneId = sceneId
 
 	lastSceneId := h.getChapterLastSceneId(questId)
 	user.MainQuest.IsReachedLastQuestScene = sceneId == lastSceneId
@@ -39,7 +40,30 @@ func (h *QuestHandler) advanceMainFlowScene(user *store.UserState, questId, scen
 		user.MainQuest.CurrentMainQuestRouteId = routeId
 		if seasonId, ok := h.SeasonIdByRouteId[routeId]; ok {
 			user.MainQuest.MainQuestSeasonId = seasonId
+			RecordSeasonRoute(user, seasonId, routeId, gametime.NowMillis())
 		}
+	}
+}
+
+// RecordSeasonRoute upserts the (season, route) pair into the player's history,
+// bumping LatestVersion on first insert. The history backs IUserMainQuestSeasonRoute,
+// which the client uses to know which chapters' scene metadata to load (so cage
+// menu-replay can transition to quests from older chapters without crashing).
+func RecordSeasonRoute(user *store.UserState, seasonId, routeId int32, nowMillis int64) {
+	if seasonId <= 0 || routeId <= 0 {
+		return
+	}
+	if user.MainQuestSeasonRoutes == nil {
+		user.MainQuestSeasonRoutes = make(map[store.SeasonRouteKey]store.SeasonRouteEntry)
+	}
+	key := store.SeasonRouteKey{MainQuestSeasonId: seasonId, MainQuestRouteId: routeId}
+	if _, exists := user.MainQuestSeasonRoutes[key]; exists {
+		return
+	}
+	user.MainQuestSeasonRoutes[key] = store.SeasonRouteEntry{
+		MainQuestSeasonId: seasonId,
+		MainQuestRouteId:  routeId,
+		LatestVersion:     nowMillis,
 	}
 }
 
@@ -125,6 +149,12 @@ func (h *QuestHandler) HandleMainQuestSceneProgress(user *store.UserState, quest
 	quest, ok := h.QuestById[scene.QuestId]
 	if !ok {
 		panic(fmt.Sprintf("unknown questId=%d for HandleMainQuestSceneProgress", questSceneId))
+	}
+
+	if prevSceneId := user.MainQuest.ProgressQuestSceneId; prevSceneId != 0 {
+		if prevScene, ok := h.SceneById[prevSceneId]; ok && prevScene.QuestId != quest.QuestId {
+			h.finalizeChainPreviousQuest(user, prevScene.QuestId, gametime.NowMillis())
+		}
 	}
 
 	if isMainQuestPlayable(quest) {

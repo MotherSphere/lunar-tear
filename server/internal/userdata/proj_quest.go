@@ -98,12 +98,37 @@ func init() {
 		return s
 	})
 	register("IUserMainQuestSeasonRoute", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(map[string]any{
-			"userId":            user.UserId,
-			"mainQuestSeasonId": user.MainQuest.MainQuestSeasonId,
-			"mainQuestRouteId":  user.MainQuest.CurrentMainQuestRouteId,
-			"latestVersion":     user.MainQuest.LatestVersion,
+		if len(user.MainQuestSeasonRoutes) == 0 {
+			// Fallback to current (season, route) for legacy saves with no history.
+			s, _ := utils.EncodeJSONMaps(map[string]any{
+				"userId":            user.UserId,
+				"mainQuestSeasonId": user.MainQuest.MainQuestSeasonId,
+				"mainQuestRouteId":  user.MainQuest.CurrentMainQuestRouteId,
+				"latestVersion":     user.MainQuest.LatestVersion,
+			})
+			return s
+		}
+		keys := make([]store.SeasonRouteKey, 0, len(user.MainQuestSeasonRoutes))
+		for k := range user.MainQuestSeasonRoutes {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			if keys[i].MainQuestSeasonId != keys[j].MainQuestSeasonId {
+				return keys[i].MainQuestSeasonId < keys[j].MainQuestSeasonId
+			}
+			return keys[i].MainQuestRouteId < keys[j].MainQuestRouteId
 		})
+		records := make([]map[string]any, 0, len(keys))
+		for _, k := range keys {
+			e := user.MainQuestSeasonRoutes[k]
+			records = append(records, map[string]any{
+				"userId":            user.UserId,
+				"mainQuestSeasonId": e.MainQuestSeasonId,
+				"mainQuestRouteId":  e.MainQuestRouteId,
+				"latestVersion":     e.LatestVersion,
+			})
+		}
+		s, _ := utils.EncodeJSONMaps(records...)
 		return s
 	})
 	register("IUserEventQuestProgressStatus", func(user store.UserState) string {

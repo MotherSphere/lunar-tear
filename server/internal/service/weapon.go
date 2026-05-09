@@ -126,7 +126,7 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
 		if thresholds, ok := catalog.ExpByEnhanceId[levelingEnhanceId]; ok {
 			weapon.Level, weapon.Exp = gameutil.LevelAndCap(weapon.Exp, thresholds)
 			if maxFunc, ok := catalog.MaxLevelByEnhanceId[wm.WeaponSpecificEnhanceId]; ok {
-				cap := maxFunc.Evaluate(weapon.LimitBreakCount)
+				cap := awakenedLevelCap(catalog, user, weapon, req.UserWeaponUuid, maxFunc.Evaluate(weapon.LimitBreakCount))
 				if weapon.Level > cap {
 					weapon.Level = cap
 					if int(cap) >= 0 && int(cap) < len(thresholds) {
@@ -748,7 +748,7 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
 		if thresholds, ok := catalog.ExpByEnhanceId[levelingEnhanceId]; ok {
 			weapon.Level, weapon.Exp = gameutil.LevelAndCap(weapon.Exp, thresholds)
 			if maxFunc, ok := catalog.MaxLevelByEnhanceId[wm.WeaponSpecificEnhanceId]; ok {
-				cap := maxFunc.Evaluate(weapon.LimitBreakCount)
+				cap := awakenedLevelCap(catalog, user, weapon, req.UserWeaponUuid, maxFunc.Evaluate(weapon.LimitBreakCount))
 				if weapon.Level > cap {
 					weapon.Level = cap
 					if int(cap) >= 0 && int(cap) < len(thresholds) {
@@ -877,4 +877,15 @@ func (s *WeaponServiceServer) Awaken(ctx context.Context, req *pb.WeaponAwakenRe
 	}
 
 	return &pb.WeaponAwakenResponse{}, nil
+}
+
+func awakenedLevelCap(catalog *masterdata.WeaponCatalog, user *store.UserState, weapon store.WeaponState, weaponUuid string, baseCap int32) int32 {
+	if _, awoken := user.WeaponAwakens[weaponUuid]; !awoken {
+		return baseCap
+	}
+	row, ok := catalog.AwakenByWeaponId[weapon.WeaponId]
+	if !ok {
+		return baseCap
+	}
+	return baseCap + row.LevelLimitUp
 }

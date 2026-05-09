@@ -74,7 +74,7 @@ func (s *QuestServiceServer) StartMainQuest(ctx context.Context, req *pb.StartMa
 		if req.IsReplayFlow {
 			engine.HandleQuestStartReplay(user, req.QuestId, req.IsBattleOnly, req.UserDeckNumber, nowMillis)
 		} else {
-			engine.HandleQuestStart(user, req.QuestId, req.IsBattleOnly, req.UserDeckNumber, nowMillis)
+			engine.HandleQuestStart(user, req.QuestId, req.IsBattleOnly, req.IsMainFlow, req.UserDeckNumber, nowMillis)
 		}
 	})
 
@@ -198,6 +198,7 @@ func (s *QuestServiceServer) SetRoute(ctx context.Context, req *pb.SetRouteReque
 		user.MainQuest.CurrentMainQuestRouteId = req.MainQuestRouteId
 		if seasonId, ok := engine.SeasonIdByRouteId[req.MainQuestRouteId]; ok {
 			user.MainQuest.MainQuestSeasonId = seasonId
+			questflow.RecordSeasonRoute(user, seasonId, req.MainQuestRouteId, gametime.NowMillis())
 		}
 		now := gametime.NowMillis()
 		user.PortalCageStatus.IsCurrentProgress = false

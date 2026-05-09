@@ -41,6 +41,7 @@ type UserState struct {
 	LoginBonus              UserLoginBonusState
 	Tutorials               map[int32]TutorialProgressState
 	MainQuest               MainQuestState
+	MainQuestSeasonRoutes   map[SeasonRouteKey]SeasonRouteEntry
 	EventQuest              EventQuestState
 	ExtraQuest              ExtraQuestState
 	SideStoryQuests         map[int32]SideStoryQuestProgress
@@ -152,6 +153,9 @@ func (u *UserState) EnsureMaps() {
 	}
 	if u.SideStoryQuests == nil {
 		u.SideStoryQuests = make(map[int32]SideStoryQuestProgress)
+	}
+	if u.MainQuestSeasonRoutes == nil {
+		u.MainQuestSeasonRoutes = make(map[SeasonRouteKey]SeasonRouteEntry)
 	}
 	if u.QuestLimitContentStatus == nil {
 		u.QuestLimitContentStatus = make(map[int32]QuestLimitContentStatus)
@@ -510,10 +514,22 @@ type MainQuestState struct {
 	MainQuestSeasonId        int32
 	LatestVersion            int64
 
-	SavedCurrentQuestSceneId      int32
-	SavedHeadQuestSceneId         int32
+	SavedContext                  SavedQuestContext
 	ReplayFlowCurrentQuestSceneId int32
 	ReplayFlowHeadQuestSceneId    int32
+}
+
+// SavedQuestContext snapshots player state when entering a menu-replay (cleared
+// quest started from the Main Quest List menu). On finish, every field is
+// restored atomically so the player returns to the exact pre-replay state.
+type SavedQuestContext struct {
+	Active                  bool
+	CurrentQuestSceneId     int32
+	HeadQuestSceneId        int32
+	CurrentMainQuestRouteId int32
+	MainQuestSeasonId       int32
+	IsReachedLastQuestScene bool
+	PortalCageInProgress    bool
 }
 
 type EventQuestState struct {
@@ -541,6 +557,17 @@ type SideStoryActiveProgress struct {
 	CurrentSideStoryQuestId      int32
 	CurrentSideStoryQuestSceneId int32
 	LatestVersion                int64
+}
+
+type SeasonRouteKey struct {
+	MainQuestSeasonId int32
+	MainQuestRouteId  int32
+}
+
+type SeasonRouteEntry struct {
+	MainQuestSeasonId int32
+	MainQuestRouteId  int32
+	LatestVersion     int64
 }
 
 type QuestLimitContentStatus struct {

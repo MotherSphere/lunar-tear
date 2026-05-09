@@ -50,11 +50,16 @@ func writeUserState(tx *sql.Tx, uid int64, u *store.UserState) error {
 		u.LoginBonus.LatestRewardReceiveDatetime, u.LoginBonus.LatestVersion); err != nil {
 		return err
 	}
-	if err := exec(`INSERT INTO user_main_quest (user_id, current_quest_flow_type, current_main_quest_route_id, current_quest_scene_id, head_quest_scene_id, is_reached_last_quest_scene, progress_quest_scene_id, progress_head_quest_scene_id, progress_quest_flow_type, main_quest_season_id, latest_version, saved_current_quest_scene_id, saved_head_quest_scene_id, replay_flow_current_quest_scene_id, replay_flow_head_quest_scene_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	if err := exec(`INSERT INTO user_main_quest (user_id, current_quest_flow_type, current_main_quest_route_id, current_quest_scene_id, head_quest_scene_id, is_reached_last_quest_scene, progress_quest_scene_id, progress_head_quest_scene_id, progress_quest_flow_type, main_quest_season_id, latest_version, saved_ctx_active, saved_ctx_current_quest_scene_id, saved_ctx_head_quest_scene_id, saved_ctx_current_main_quest_route_id, saved_ctx_main_quest_season_id, saved_ctx_is_reached_last_quest_scene, saved_ctx_portal_cage_in_progress, replay_flow_current_quest_scene_id, replay_flow_head_quest_scene_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		uid, u.MainQuest.CurrentQuestFlowType, u.MainQuest.CurrentMainQuestRouteId, u.MainQuest.CurrentQuestSceneId,
 		u.MainQuest.HeadQuestSceneId, boolToInt(u.MainQuest.IsReachedLastQuestScene), u.MainQuest.ProgressQuestSceneId,
 		u.MainQuest.ProgressHeadQuestSceneId, u.MainQuest.ProgressQuestFlowType, u.MainQuest.MainQuestSeasonId,
-		u.MainQuest.LatestVersion, u.MainQuest.SavedCurrentQuestSceneId, u.MainQuest.SavedHeadQuestSceneId,
+		u.MainQuest.LatestVersion,
+		boolToInt(u.MainQuest.SavedContext.Active),
+		u.MainQuest.SavedContext.CurrentQuestSceneId, u.MainQuest.SavedContext.HeadQuestSceneId,
+		u.MainQuest.SavedContext.CurrentMainQuestRouteId, u.MainQuest.SavedContext.MainQuestSeasonId,
+		boolToInt(u.MainQuest.SavedContext.IsReachedLastQuestScene),
+		boolToInt(u.MainQuest.SavedContext.PortalCageInProgress),
 		u.MainQuest.ReplayFlowCurrentQuestSceneId, u.MainQuest.ReplayFlowHeadQuestSceneId); err != nil {
 		return err
 	}
@@ -205,6 +210,12 @@ func writeUserState(tx *sql.Tx, uid int64, u *store.UserState) error {
 	for id, v := range u.SideStoryQuests {
 		if err := exec(`INSERT INTO user_side_story_quests (user_id, side_story_quest_id, head_side_story_quest_scene_id, side_story_quest_state_type, latest_version) VALUES (?,?,?,?,?)`,
 			uid, id, v.HeadSideStoryQuestSceneId, int32(v.SideStoryQuestStateType), v.LatestVersion); err != nil {
+			return err
+		}
+	}
+	for k, v := range u.MainQuestSeasonRoutes {
+		if err := exec(`INSERT INTO user_main_quest_season_routes (user_id, main_quest_season_id, main_quest_route_id, latest_version) VALUES (?,?,?,?)`,
+			uid, k.MainQuestSeasonId, k.MainQuestRouteId, v.LatestVersion); err != nil {
 			return err
 		}
 	}
@@ -562,11 +573,16 @@ func diffAndSave(tx *sql.Tx, uid int64, before, after *store.UserState) error {
 		}
 	}
 	if before.MainQuest != after.MainQuest {
-		if err := exec(`UPDATE user_main_quest SET current_quest_flow_type=?, current_main_quest_route_id=?, current_quest_scene_id=?, head_quest_scene_id=?, is_reached_last_quest_scene=?, progress_quest_scene_id=?, progress_head_quest_scene_id=?, progress_quest_flow_type=?, main_quest_season_id=?, latest_version=?, saved_current_quest_scene_id=?, saved_head_quest_scene_id=?, replay_flow_current_quest_scene_id=?, replay_flow_head_quest_scene_id=? WHERE user_id=?`,
+		if err := exec(`UPDATE user_main_quest SET current_quest_flow_type=?, current_main_quest_route_id=?, current_quest_scene_id=?, head_quest_scene_id=?, is_reached_last_quest_scene=?, progress_quest_scene_id=?, progress_head_quest_scene_id=?, progress_quest_flow_type=?, main_quest_season_id=?, latest_version=?, saved_ctx_active=?, saved_ctx_current_quest_scene_id=?, saved_ctx_head_quest_scene_id=?, saved_ctx_current_main_quest_route_id=?, saved_ctx_main_quest_season_id=?, saved_ctx_is_reached_last_quest_scene=?, saved_ctx_portal_cage_in_progress=?, replay_flow_current_quest_scene_id=?, replay_flow_head_quest_scene_id=? WHERE user_id=?`,
 			after.MainQuest.CurrentQuestFlowType, after.MainQuest.CurrentMainQuestRouteId, after.MainQuest.CurrentQuestSceneId,
 			after.MainQuest.HeadQuestSceneId, boolToInt(after.MainQuest.IsReachedLastQuestScene), after.MainQuest.ProgressQuestSceneId,
 			after.MainQuest.ProgressHeadQuestSceneId, after.MainQuest.ProgressQuestFlowType, after.MainQuest.MainQuestSeasonId,
-			after.MainQuest.LatestVersion, after.MainQuest.SavedCurrentQuestSceneId, after.MainQuest.SavedHeadQuestSceneId,
+			after.MainQuest.LatestVersion,
+			boolToInt(after.MainQuest.SavedContext.Active),
+			after.MainQuest.SavedContext.CurrentQuestSceneId, after.MainQuest.SavedContext.HeadQuestSceneId,
+			after.MainQuest.SavedContext.CurrentMainQuestRouteId, after.MainQuest.SavedContext.MainQuestSeasonId,
+			boolToInt(after.MainQuest.SavedContext.IsReachedLastQuestScene),
+			boolToInt(after.MainQuest.SavedContext.PortalCageInProgress),
 			after.MainQuest.ReplayFlowCurrentQuestSceneId, after.MainQuest.ReplayFlowHeadQuestSceneId, uid); err != nil {
 			return err
 		}
@@ -734,6 +750,18 @@ func diffAndSave(tx *sql.Tx, uid int64, before, after *store.UserState) error {
 		func(v store.SideStoryQuestProgress) []any {
 			return []any{0, v.HeadSideStoryQuestSceneId, int32(v.SideStoryQuestStateType), v.LatestVersion}
 		}, "side_story_quest_id, head_side_story_quest_scene_id, side_story_quest_state_type, latest_version")
+
+	for k, v := range after.MainQuestSeasonRoutes {
+		if old, ok := before.MainQuestSeasonRoutes[k]; !ok || old != v {
+			exec(`INSERT OR REPLACE INTO user_main_quest_season_routes (user_id, main_quest_season_id, main_quest_route_id, latest_version) VALUES (?,?,?,?)`,
+				uid, k.MainQuestSeasonId, k.MainQuestRouteId, v.LatestVersion)
+		}
+	}
+	for k := range before.MainQuestSeasonRoutes {
+		if _, ok := after.MainQuestSeasonRoutes[k]; !ok {
+			exec(`DELETE FROM user_main_quest_season_routes WHERE user_id=? AND main_quest_season_id=? AND main_quest_route_id=?`, uid, k.MainQuestSeasonId, k.MainQuestRouteId)
+		}
+	}
 	diffMapInt32(tx, uid, before.QuestLimitContentStatus, after.QuestLimitContentStatus, "user_quest_limit_content_status", "limit_content_id",
 		func(v store.QuestLimitContentStatus) []any {
 			return []any{0, v.LimitContentQuestStatusType, v.EventQuestChapterId, v.LatestVersion}

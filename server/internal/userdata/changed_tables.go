@@ -100,8 +100,10 @@ func ChangedTables(before, after *store.UserState) []string {
 		add("IUserMainQuestFlowStatus")
 		add("IUserMainQuestMainFlowStatus")
 		add("IUserMainQuestProgressStatus")
-		add("IUserMainQuestSeasonRoute")
 		add("IUserMainQuestReplayFlowStatus")
+	}
+	if !mapsEqualStruct(before.MainQuestSeasonRoutes, after.MainQuestSeasonRoutes) {
+		add("IUserMainQuestSeasonRoute")
 	}
 	if before.EventQuest != after.EventQuest {
 		add("IUserEventQuestProgressStatus")
@@ -434,6 +436,8 @@ func keyFieldsForTable(table string) []string {
 		return []string{"userId", "dokanId"}
 	case "IUserSideStoryQuest":
 		return []string{"userId", "sideStoryQuestId"}
+	case "IUserMainQuestSeasonRoute":
+		return []string{"userId", "mainQuestSeasonId", "mainQuestRouteId"}
 	case "IUserQuestLimitContentStatus":
 		return []string{"userId", "questId"}
 	case "IUserBigHuntMaxScore":

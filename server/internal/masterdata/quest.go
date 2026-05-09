@@ -12,6 +12,34 @@ type BattleDropInfo struct {
 	BattleDropCategoryId int32
 }
 
+// SeasonRoutePair pairs a main-quest season with one of its routes, used to
+// reconstruct a player's progression history for IUserMainQuestSeasonRoute.
+type SeasonRoutePair struct {
+	MainQuestSeasonId int32
+	MainQuestRouteId  int32
+}
+
+// SeasonRoutesUpToCurrent returns every (season, route) pair from
+// OrderedSeasonRoutes whose ordering is <= the given (seasonId, routeId)
+// pair, inclusive. Used at user-load time to backfill
+// IUserMainQuestSeasonRoute history so the client can compute the next
+// route correctly when the player advances past a chapter end. Returns
+// nil if the given pair isn't found.
+func (q *QuestCatalog) SeasonRoutesUpToCurrent(seasonId, routeId int32) []SeasonRoutePair {
+	if q == nil {
+		return nil
+	}
+	out := make([]SeasonRoutePair, 0, len(q.OrderedSeasonRoutes))
+	for _, p := range q.OrderedSeasonRoutes {
+		out = append(out, p)
+		if p.MainQuestSeasonId == seasonId && p.MainQuestRouteId == routeId {
+			return out
+		}
+	}
+	// Pair not found in masterdata — don't return a partial list.
+	return nil
+}
+
 type QuestCatalog struct {
 	SceneById                          map[int32]EntityMQuestScene
 	MissionById                        map[int32]EntityMQuestMission
@@ -34,6 +62,9 @@ type QuestCatalog struct {
 	TutorialUnlockConditions           []EntityMTutorialUnlockCondition
 	ChapterLastSceneByQuestId          map[int32]int32
 	SeasonIdByRouteId                  map[int32]int32
+	OrderedSeasonRoutes                []SeasonRoutePair
+	QuestsWithDifficulty               map[int32]bool // any questId referenced in m_quest_relation_main_flow
+	BattleOnlyTargetSceneByQuestId     map[int32]int32
 
 	UserExpThresholds       []int32
 	CharacterExpThresholds  []int32
@@ -115,6 +146,22 @@ func LoadQuestCatalog(partsCatalog *PartsCatalog) (*QuestCatalog, error) {
 	seasonIdByRouteId := make(map[int32]int32, len(routes))
 	for _, r := range routes {
 		seasonIdByRouteId[r.MainQuestRouteId] = r.MainQuestSeasonId
+	}
+
+	orderedRoutes := make([]EntityMMainQuestRoute, len(routes))
+	copy(orderedRoutes, routes)
+	sort.Slice(orderedRoutes, func(i, j int) bool {
+		if orderedRoutes[i].MainQuestSeasonId != orderedRoutes[j].MainQuestSeasonId {
+			return orderedRoutes[i].MainQuestSeasonId < orderedRoutes[j].MainQuestSeasonId
+		}
+		return orderedRoutes[i].SortOrder < orderedRoutes[j].SortOrder
+	})
+	orderedSeasonRoutes := make([]SeasonRoutePair, 0, len(orderedRoutes))
+	for _, r := range orderedRoutes {
+		orderedSeasonRoutes = append(orderedSeasonRoutes, SeasonRoutePair{
+			MainQuestSeasonId: r.MainQuestSeasonId,
+			MainQuestRouteId:  r.MainQuestRouteId,
+		})
 	}
 
 	firstClearSwitches, err := utils.ReadTable[EntityMQuestFirstClearRewardSwitch]("m_quest_first_clear_reward_switch")
@@ -236,6 +283,30 @@ func LoadQuestCatalog(partsCatalog *PartsCatalog) (*QuestCatalog, error) {
 	tutorialUnlockConds, err := utils.ReadTable[EntityMTutorialUnlockCondition]("m_tutorial_unlock_condition")
 	if err != nil {
 		return nil, fmt.Errorf("load tutorial unlock condition table: %w", err)
+	}
+
+	relations, err := utils.ReadTable[EntityMQuestRelationMainFlow]("m_quest_relation_main_flow")
+	if err != nil {
+		return nil, fmt.Errorf("load quest relation main flow table: %w", err)
+	}
+	questsWithDifficulty := make(map[int32]bool, len(relations)*3)
+	for _, r := range relations {
+		questsWithDifficulty[r.MainFlowQuestId] = true
+		if r.ReplayFlowQuestId != 0 {
+			questsWithDifficulty[r.ReplayFlowQuestId] = true
+		}
+		if r.SubFlowQuestId != 0 {
+			questsWithDifficulty[r.SubFlowQuestId] = true
+		}
+	}
+
+	battleOnlyTargetSceneByQuestId := make(map[int32]int32)
+	for _, scene := range scenes {
+		if scene.IsBattleOnlyTarget {
+			if _, exists := battleOnlyTargetSceneByQuestId[scene.QuestId]; !exists {
+				battleOnlyTargetSceneByQuestId[scene.QuestId] = scene.QuestSceneId
+			}
+		}
 	}
 
 	paramMapRows, err := LoadParameterMap()
@@ -529,6 +600,9 @@ func LoadQuestCatalog(partsCatalog *PartsCatalog) (*QuestCatalog, error) {
 		TutorialUnlockConditions:           tutorialUnlockConds,
 		ChapterLastSceneByQuestId:          chapterLastSceneByQuestId,
 		SeasonIdByRouteId:                  seasonIdByRouteId,
+		OrderedSeasonRoutes:                orderedSeasonRoutes,
+		QuestsWithDifficulty:               questsWithDifficulty,
+		BattleOnlyTargetSceneByQuestId:     battleOnlyTargetSceneByQuestId,
 
 		UserExpThresholds:       BuildExpThresholds(paramMapRows, 1),
 		CharacterExpThresholds:  BuildExpThresholds(paramMapRows, 31),
@@ -544,4 +618,13 @@ func LoadQuestCatalog(partsCatalog *PartsCatalog) (*QuestCatalog, error) {
 
 		PartsCatalog: partsCatalog,
 	}, nil
+}
+
+func (q *QuestCatalog) BattleOnlyTargetSceneIdFor(questId int32) (int32, bool) {
+	v, ok := q.BattleOnlyTargetSceneByQuestId[questId]
+	return v, ok
+}
+
+func (q *QuestCatalog) QuestHasDifficulty(questId int32) bool {
+	return q.QuestsWithDifficulty[questId]
 }

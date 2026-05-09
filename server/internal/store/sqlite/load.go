@@ -81,6 +81,7 @@ func initMaps(u *store.UserState) {
 	u.CharacterRebirths = make(map[int32]store.CharacterRebirthState)
 	u.AutoSaleSettings = make(map[int32]store.AutoSaleSettingState)
 	u.SideStoryQuests = make(map[int32]store.SideStoryQuestProgress)
+	u.MainQuestSeasonRoutes = make(map[store.SeasonRouteKey]store.SeasonRouteEntry)
 	u.QuestLimitContentStatus = make(map[int32]store.QuestLimitContentStatus)
 	u.BigHuntMaxScores = make(map[int32]store.BigHuntMaxScore)
 	u.BigHuntStatuses = make(map[int32]store.BigHuntStatus)
@@ -124,17 +125,26 @@ func load1to1(db *sql.DB, uid int64, u *store.UserState) {
 		Scan(&u.LoginBonus.LoginBonusId, &u.LoginBonus.CurrentPageNumber, &u.LoginBonus.CurrentStampNumber,
 			&u.LoginBonus.LatestRewardReceiveDatetime, &u.LoginBonus.LatestVersion)
 
+	var ctxActive, ctxIsLast, ctxCage int
 	_ = db.QueryRow(`SELECT current_quest_flow_type, current_main_quest_route_id, current_quest_scene_id,
 		head_quest_scene_id, is_reached_last_quest_scene, progress_quest_scene_id, progress_head_quest_scene_id,
-		progress_quest_flow_type, main_quest_season_id, latest_version, saved_current_quest_scene_id,
-		saved_head_quest_scene_id, replay_flow_current_quest_scene_id, replay_flow_head_quest_scene_id
+		progress_quest_flow_type, main_quest_season_id, latest_version,
+		saved_ctx_active, saved_ctx_current_quest_scene_id, saved_ctx_head_quest_scene_id,
+		saved_ctx_current_main_quest_route_id, saved_ctx_main_quest_season_id,
+		saved_ctx_is_reached_last_quest_scene, saved_ctx_portal_cage_in_progress,
+		replay_flow_current_quest_scene_id, replay_flow_head_quest_scene_id
 		FROM user_main_quest WHERE user_id=?`, uid).
 		Scan(&u.MainQuest.CurrentQuestFlowType, &u.MainQuest.CurrentMainQuestRouteId, &u.MainQuest.CurrentQuestSceneId,
 			&u.MainQuest.HeadQuestSceneId, &b, &u.MainQuest.ProgressQuestSceneId, &u.MainQuest.ProgressHeadQuestSceneId,
 			&u.MainQuest.ProgressQuestFlowType, &u.MainQuest.MainQuestSeasonId, &u.MainQuest.LatestVersion,
-			&u.MainQuest.SavedCurrentQuestSceneId, &u.MainQuest.SavedHeadQuestSceneId,
+			&ctxActive, &u.MainQuest.SavedContext.CurrentQuestSceneId, &u.MainQuest.SavedContext.HeadQuestSceneId,
+			&u.MainQuest.SavedContext.CurrentMainQuestRouteId, &u.MainQuest.SavedContext.MainQuestSeasonId,
+			&ctxIsLast, &ctxCage,
 			&u.MainQuest.ReplayFlowCurrentQuestSceneId, &u.MainQuest.ReplayFlowHeadQuestSceneId)
 	u.MainQuest.IsReachedLastQuestScene = b != 0
+	u.MainQuest.SavedContext.Active = ctxActive != 0
+	u.MainQuest.SavedContext.IsReachedLastQuestScene = ctxIsLast != 0
+	u.MainQuest.SavedContext.PortalCageInProgress = ctxCage != 0
 
 	_ = db.QueryRow(`SELECT current_event_quest_chapter_id, current_quest_id, current_quest_scene_id,
 		head_quest_scene_id, latest_version FROM user_event_quest WHERE user_id=?`, uid).
@@ -343,6 +353,16 @@ func loadMapTables(db *sql.DB, uid int64, u *store.UserState) {
 		rows.Scan(&id, &head, &st, &lv)
 		u.SideStoryQuests[id] = store.SideStoryQuestProgress{
 			HeadSideStoryQuestSceneId: head, SideStoryQuestStateType: model.SideStoryQuestStateType(st), LatestVersion: lv,
+		}
+	})
+
+	queryRows(db, `SELECT main_quest_season_id, main_quest_route_id, latest_version
+		FROM user_main_quest_season_routes WHERE user_id=?`, uid, func(rows *sql.Rows) {
+		var seasonId, routeId int32
+		var lv int64
+		rows.Scan(&seasonId, &routeId, &lv)
+		u.MainQuestSeasonRoutes[store.SeasonRouteKey{MainQuestSeasonId: seasonId, MainQuestRouteId: routeId}] = store.SeasonRouteEntry{
+			MainQuestSeasonId: seasonId, MainQuestRouteId: routeId, LatestVersion: lv,
 		}
 	})
 

@@ -109,6 +109,7 @@ func (s *SQLiteStore) ImportUser(u *store.UserState) error {
 		"user_big_hunt_max_scores",
 		"user_quest_limit_content_status",
 		"user_side_story_quests",
+		"user_main_quest_season_routes",
 		"user_missions",
 		"user_quest_missions",
 		"user_quests",

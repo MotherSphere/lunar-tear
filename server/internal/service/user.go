@@ -19,6 +19,8 @@ import (
 	pb "lunar-tear/server/gen/proto"
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/model"
+	"lunar-tear/server/internal/questflow"
+	"lunar-tear/server/internal/runtime"
 	"lunar-tear/server/internal/store"
 )
 
@@ -26,15 +28,16 @@ type UserServiceServer struct {
 	pb.UnimplementedUserServiceServer
 	users      store.UserRepository
 	sessions   store.SessionRepository
+	holder     *runtime.Holder
 	authURL    string
 	noRegister bool
 }
 
-func NewUserServiceServer(users store.UserRepository, sessions store.SessionRepository, authURL string, noRegister bool) *UserServiceServer {
+func NewUserServiceServer(users store.UserRepository, sessions store.SessionRepository, holder *runtime.Holder, authURL string, noRegister bool) *UserServiceServer {
 	if authURL != "" && !strings.Contains(authURL, "://") {
 		authURL = "http://" + authURL
 	}
-	return &UserServiceServer{users: users, sessions: sessions, authURL: authURL, noRegister: noRegister}
+	return &UserServiceServer{users: users, sessions: sessions, holder: holder, authURL: authURL, noRegister: noRegister}
 }
 
 func (s *UserServiceServer) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest) (*pb.RegisterUserResponse, error) {
@@ -93,7 +96,24 @@ func (s *UserServiceServer) GameStart(ctx context.Context, _ *emptypb.Empty) (*p
 
 	userId := CurrentUserId(ctx, s.users, s.sessions)
 	s.users.UpdateUser(userId, func(user *store.UserState) {
-		user.GameStartDatetime = gametime.NowMillis()
+		now := gametime.NowMillis()
+		user.GameStartDatetime = now
+
+		// Backfill IUserMainQuestSeasonRoute history so the client can compute
+		// the next route after a chapter end. Idempotent: RecordSeasonRoute
+		// is a no-op for entries that already exist.
+		if catalog := s.holder.Get(); catalog != nil && catalog.QuestHandler != nil {
+			if user.MainQuest.MainQuestSeasonId > 0 && user.MainQuest.CurrentMainQuestRouteId > 0 {
+				before := len(user.MainQuestSeasonRoutes)
+				for _, p := range catalog.QuestHandler.SeasonRoutesUpToCurrent(user.MainQuest.MainQuestSeasonId, user.MainQuest.CurrentMainQuestRouteId) {
+					questflow.RecordSeasonRoute(user, p.MainQuestSeasonId, p.MainQuestRouteId, now)
+				}
+				if added := len(user.MainQuestSeasonRoutes) - before; added > 0 {
+					user.MainQuest.LatestVersion = now
+					log.Printf("[UserService] GameStart: backfilled %d MainQuestSeasonRoute entries", added)
+				}
+			}
+		}
 	})
 
 	return &pb.GameStartResponse{}, nil

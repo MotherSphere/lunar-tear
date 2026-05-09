@@ -53,9 +53,11 @@ func (h *QuestHandler) HandleEventQuestFinish(user *store.UserState, eventQuestC
 		store.RecoverStamina(user, refund*1000, maxMillis, nowMillis)
 	}
 
+	user.EventQuest.CurrentEventQuestChapterId = 0
 	user.EventQuest.CurrentQuestId = 0
 	user.EventQuest.CurrentQuestSceneId = 0
 	user.EventQuest.HeadQuestSceneId = 0
+	user.EventQuest.LatestVersion = nowMillis
 
 	h.clearQuestMissions(user, questId, nowMillis)
 
