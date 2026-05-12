@@ -124,9 +124,9 @@ func LoadGachaCatalog() ([]store.GachaCatalogEntry, map[int32]GachaMedalInfo, er
 		})
 	}
 
-	for groupId, steps := range stepupSteps {
+	for _, steps := range stepupSteps {
 		first := steps[0]
-		gachaId := groupId
+		gachaId := first.DestinationDomainId
 
 		medal := gachaToMedal[first.DestinationDomainId]
 		medalId := medal.GachaMedalId
@@ -154,7 +154,7 @@ func LoadGachaCatalog() ([]store.GachaCatalogEntry, map[int32]GachaMedalInfo, er
 			GachaDecorationType:   model.GachaDecorationFestival,
 			SortOrder:             first.SortOrderDesc,
 			BannerAssetName:       first.BannerAssetName,
-			GroupId:               groupId,
+			GroupId:               gachaId,
 			CeilingCount:          model.PityCeilingCount,
 			PricePhases:           pricePhases,
 			MaxStepNumber:         maxStep,

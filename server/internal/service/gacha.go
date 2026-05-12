@@ -166,7 +166,15 @@ func (s *GachaServiceServer) Draw(ctx context.Context, req *pb.DrawRequest) (*pb
 	}
 
 	var drawResult *gacha.DrawResult
+	ownedCostumes := map[int32]bool{}
+	ownedWeapons := map[int32]bool{}
 	updatedUser, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+		for _, c := range user.Costumes {
+			ownedCostumes[c.CostumeId] = true
+		}
+		for _, w := range user.Weapons {
+			ownedWeapons[w.WeaponId] = true
+		}
 		var drawErr error
 		drawResult, drawErr = handler.HandleDraw(user, *entry, req.GachaPricePhaseId, execCount)
 		if drawErr != nil {
@@ -202,15 +210,6 @@ func (s *GachaServiceServer) Draw(ctx context.Context, req *pb.DrawRequest) (*pb
 	costumePT := int32(model.PossessionTypeCostume)
 	weaponPT := int32(model.PossessionTypeWeapon)
 	isMaterialDraw := model.IsMaterialBanner(entry.GachaLabelType)
-
-	ownedCostumes := make(map[int32]bool, len(updatedUser.Costumes))
-	for _, c := range updatedUser.Costumes {
-		ownedCostumes[c.CostumeId] = true
-	}
-	ownedWeapons := make(map[int32]bool, len(updatedUser.Weapons))
-	for _, w := range updatedUser.Weapons {
-		ownedWeapons[w.WeaponId] = true
-	}
 
 	for i, item := range drawResult.Items {
 		isNew := !isOwnedByType(item, ownedCostumes, ownedWeapons, updatedUser)
@@ -352,7 +351,15 @@ func (s *GachaServiceServer) RewardDraw(ctx context.Context, req *pb.RewardDrawR
 	handler := s.holder.Get().GachaHandler
 
 	var items []gacha.DrawnItem
+	ownedCostumes := map[int32]bool{}
+	ownedWeapons := map[int32]bool{}
 	updatedUser, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+		for _, c := range user.Costumes {
+			ownedCostumes[c.CostumeId] = true
+		}
+		for _, w := range user.Weapons {
+			ownedWeapons[w.WeaponId] = true
+		}
 		var drawErr error
 		items, drawErr = handler.HandleRewardDraw(user, 1)
 		if drawErr != nil {
@@ -361,15 +368,6 @@ func (s *GachaServiceServer) RewardDraw(ctx context.Context, req *pb.RewardDrawR
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update user: %w", err)
-	}
-
-	ownedCostumes := make(map[int32]bool, len(updatedUser.Costumes))
-	for _, c := range updatedUser.Costumes {
-		ownedCostumes[c.CostumeId] = true
-	}
-	ownedWeapons := make(map[int32]bool, len(updatedUser.Weapons))
-	for _, w := range updatedUser.Weapons {
-		ownedWeapons[w.WeaponId] = true
 	}
 
 	results := make([]*pb.RewardGachaItem, 0, len(items))

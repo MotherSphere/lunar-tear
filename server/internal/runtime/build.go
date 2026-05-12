@@ -57,7 +57,7 @@ func buildCatalogs() (*Catalogs, error) {
 
 	gachaPool.BuildShopFeatured(shopCatalog)
 	gachaPool.PruneUnpairedCostumes()
-	gachaPool.BuildFeaturedMapping(gachaEntries)
+	gachaPool.BuildFeaturedFromTerms(gachaEntries)
 	gachaPool.BuildBannerPools(gachaEntries)
 	masterdata.EnrichCatalogPromotions(gachaEntries, gachaPool)
 

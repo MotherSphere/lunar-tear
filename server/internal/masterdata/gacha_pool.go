@@ -34,16 +34,31 @@ type ShopFeaturedEntry struct {
 	WeaponId  int32
 }
 
+type CatalogTerm struct {
+	TermId        int32
+	StartDatetime int64
+	Costumes      []GachaPoolItem
+	Weapons       []GachaPoolItem
+}
+
+// StandardPoolTermId is the catalog term whose items form the cross-banner
+// standard pool (term 1 holds the launch starter set).
+const StandardPoolTermId int32 = 1
+
 type GachaCatalog struct {
-	CostumesByRarity    map[int32][]GachaPoolItem
-	WeaponsByRarity     map[int32][]GachaPoolItem
-	Materials           []GachaPoolItem
-	CostumeById         map[int32]GachaPoolItem
-	WeaponById          map[int32]GachaPoolItem
-	CostumeWeaponMap    map[int32]int32 // costumeId -> paired weaponId
-	FeaturedByGacha     map[int32]FeaturedSet
-	BannerPools         map[int32]*BannerPool
-	ShopFeaturedByMedal map[int32][]ShopFeaturedEntry // consumableId -> paired entries
+	CostumesByRarity         map[int32][]GachaPoolItem
+	WeaponsByRarity          map[int32][]GachaPoolItem
+	StandardCostumesByRarity map[int32][]GachaPoolItem
+	StandardWeaponsByRarity  map[int32][]GachaPoolItem
+	Materials                []GachaPoolItem
+	CostumeById              map[int32]GachaPoolItem
+	WeaponById               map[int32]GachaPoolItem
+	CostumeWeaponMap         map[int32]int32 // costumeId -> paired weaponId
+	FeaturedByGacha          map[int32]FeaturedSet
+	BannerPools              map[int32]*BannerPool
+	ShopFeaturedByMedal      map[int32][]ShopFeaturedEntry // consumableId -> paired entries
+	TermById                 map[int32]*CatalogTerm
+	TermsByStartDatetime     map[int64][]*CatalogTerm
 }
 
 func LoadGachaPool() (*GachaCatalog, error) {
@@ -73,6 +88,43 @@ func LoadGachaPool() (*GachaCatalog, error) {
 	}
 	evolvedWeapons := buildEvolvedWeaponSet(evoGroupRows)
 
+	terms, err := utils.ReadTable[EntityMCatalogTerm]("m_catalog_term")
+	if err != nil {
+		return nil, fmt.Errorf("load catalog term table: %w", err)
+	}
+	firstClearRewards, err := utils.ReadTable[EntityMQuestFirstClearRewardGroup]("m_quest_first_clear_reward_group")
+	if err != nil {
+		return nil, fmt.Errorf("load quest first clear reward group table: %w", err)
+	}
+	sceneGrants, err := utils.ReadTable[EntityMUserQuestSceneGrantPossession]("m_user_quest_scene_grant_possession")
+	if err != nil {
+		return nil, fmt.Errorf("load user quest scene grant possession table: %w", err)
+	}
+	missionRewardRows, err := utils.ReadTable[EntityMMissionReward]("m_mission_reward")
+	if err != nil {
+		return nil, fmt.Errorf("load mission reward table: %w", err)
+	}
+
+	questGrantedCostumes := make(map[int32]bool)
+	questGrantedWeapons := make(map[int32]bool)
+	collectGrant := func(possType, possId int32) {
+		switch possType {
+		case int32(model.PossessionTypeCostume):
+			questGrantedCostumes[possId] = true
+		case int32(model.PossessionTypeWeapon):
+			questGrantedWeapons[possId] = true
+		}
+	}
+	for _, r := range firstClearRewards {
+		collectGrant(r.PossessionType, r.PossessionId)
+	}
+	for _, r := range sceneGrants {
+		collectGrant(r.PossessionType, r.PossessionId)
+	}
+	for _, r := range missionRewardRows {
+		collectGrant(r.PossessionType, r.PossessionId)
+	}
+
 	catalogCostumeSet := make(map[int32]bool, len(catalogCostumes))
 	costumeTermId := make(map[int32]int32, len(catalogCostumes))
 	for _, c := range catalogCostumes {
@@ -101,19 +153,31 @@ func LoadGachaPool() (*GachaCatalog, error) {
 	}
 
 	pool := &GachaCatalog{
-		CostumesByRarity: make(map[int32][]GachaPoolItem),
-		WeaponsByRarity:  make(map[int32][]GachaPoolItem),
-		CostumeById:      make(map[int32]GachaPoolItem),
-		WeaponById:       make(map[int32]GachaPoolItem),
-		CostumeWeaponMap: make(map[int32]int32),
-		FeaturedByGacha:  make(map[int32]FeaturedSet),
+		CostumesByRarity:     make(map[int32][]GachaPoolItem),
+		WeaponsByRarity:      make(map[int32][]GachaPoolItem),
+		CostumeById:          make(map[int32]GachaPoolItem),
+		WeaponById:           make(map[int32]GachaPoolItem),
+		CostumeWeaponMap:     make(map[int32]int32),
+		FeaturedByGacha:      make(map[int32]FeaturedSet),
+		TermById:             make(map[int32]*CatalogTerm),
+		TermsByStartDatetime: make(map[int64][]*CatalogTerm),
+	}
+	for _, t := range terms {
+		ct := &CatalogTerm{TermId: t.CatalogTermId, StartDatetime: t.StartDatetime}
+		pool.TermById[t.CatalogTermId] = ct
+		pool.TermsByStartDatetime[t.StartDatetime] = append(pool.TermsByStartDatetime[t.StartDatetime], ct)
 	}
 
+	questGrantedCostumeCount := 0
 	for _, c := range costumes {
 		if !catalogCostumeSet[c.CostumeId] {
 			continue
 		}
 		if c.RarityType < model.RaritySRare {
+			continue
+		}
+		if questGrantedCostumes[c.CostumeId] {
+			questGrantedCostumeCount++
 			continue
 		}
 		item := GachaPoolItem{
@@ -127,11 +191,18 @@ func LoadGachaPool() (*GachaCatalog, error) {
 	}
 
 	restrictedCount := 0
+	questGrantedWeaponCount := 0
+	evolvedFilteredCount := 0
 	for _, w := range weapons {
 		if !catalogWeaponSet[w.WeaponId] {
 			continue
 		}
 		if evolvedWeapons[w.WeaponId] {
+			evolvedFilteredCount++
+			continue
+		}
+		if questGrantedWeapons[w.WeaponId] {
+			questGrantedWeaponCount++
 			continue
 		}
 		item := GachaPoolItem{
@@ -147,7 +218,49 @@ func LoadGachaPool() (*GachaCatalog, error) {
 		pool.WeaponsByRarity[w.RarityType] = append(pool.WeaponsByRarity[w.RarityType], item)
 	}
 
-	log.Printf("[GachaPool] excluded %d evolved weapons, %d restricted weapons from pool", len(evolvedWeapons), restrictedCount)
+	// Bucket catalog items into their terms (uses the post-filter CostumeById/WeaponById).
+	for _, cc := range catalogCostumes {
+		ct := pool.TermById[cc.CatalogTermId]
+		if ct == nil {
+			continue
+		}
+		if item, ok := pool.CostumeById[cc.CostumeId]; ok {
+			ct.Costumes = append(ct.Costumes, item)
+		}
+	}
+	for _, cw := range catalogWeapons {
+		ct := pool.TermById[cw.CatalogTermId]
+		if ct == nil || restrictedWeapons[cw.WeaponId] {
+			continue
+		}
+		if item, ok := pool.WeaponById[cw.WeaponId]; ok {
+			ct.Weapons = append(ct.Weapons, item)
+		}
+	}
+
+	// Standard pool: items in term 1 (the launch starter set, same on every banner).
+	pool.StandardCostumesByRarity = make(map[int32][]GachaPoolItem)
+	pool.StandardWeaponsByRarity = make(map[int32][]GachaPoolItem)
+	if std := pool.TermById[StandardPoolTermId]; std != nil {
+		for _, c := range std.Costumes {
+			pool.StandardCostumesByRarity[c.RarityType] = append(pool.StandardCostumesByRarity[c.RarityType], c)
+		}
+		for _, w := range std.Weapons {
+			pool.StandardWeaponsByRarity[w.RarityType] = append(pool.StandardWeaponsByRarity[w.RarityType], w)
+		}
+	}
+	stdCos, stdWea := 0, 0
+	for _, items := range pool.StandardCostumesByRarity {
+		stdCos += len(items)
+	}
+	for _, items := range pool.StandardWeaponsByRarity {
+		stdWea += len(items)
+	}
+
+	log.Printf("[GachaPool] catalog terms: %d, standard pool: %d costumes + %d weapons (term %d)",
+		len(pool.TermById), stdCos, stdWea, StandardPoolTermId)
+	log.Printf("[GachaPool] pool excludes %d evolved, %d quest-granted costumes, %d quest-granted weapons, %d restricted weapons",
+		evolvedFilteredCount, questGrantedCostumeCount, questGrantedWeaponCount, restrictedCount)
 
 	type weaponKey struct {
 		TermId     int32
@@ -269,119 +382,138 @@ func (pool *GachaCatalog) PruneUnpairedCostumes() {
 	log.Printf("[GachaPool] pruned %d unpaired costumes", pruned)
 }
 
-func (pool *GachaCatalog) BuildFeaturedMapping(entries []store.GachaCatalogEntry) {
+// BuildFeaturedFromTerms derives a featured set for each non-chapter banner by
+// unioning items from catalog terms that started on the banner's StartDatetime
+// (excluding term 1 — the standard pool). Falls back to medal-exchange shop
+// contents for banners whose StartDatetime doesn't line up with a term.
+func (pool *GachaCatalog) BuildFeaturedFromTerms(entries []store.GachaCatalogEntry) {
 	matched := 0
+	fromShop := 0
+	gachaEligible := 0
 	for _, entry := range entries {
-		if entry.MedalConsumableItemId == 0 {
+		if entry.GachaLabelType == model.GachaLabelChapter {
 			continue
 		}
-		shopEntries, ok := pool.ShopFeaturedByMedal[entry.MedalConsumableItemId]
-		if !ok || len(shopEntries) == 0 {
-			continue
-		}
+		gachaEligible++
 
-		seenCostume := make(map[int32]bool)
-		linkedWeapons := make(map[int32]bool)
-		var costumes []GachaPoolItem
-		for _, se := range shopEntries {
-			if se.CostumeId != 0 && !seenCostume[se.CostumeId] {
-				costumes = append(costumes, pool.CostumeById[se.CostumeId])
-				seenCostume[se.CostumeId] = true
-				linkedWeapons[se.WeaponId] = true
-			}
-		}
+		costumes, weapons := pool.unionTermFeatured(entry.StartDatetime)
 
-		seenWeapon := make(map[int32]bool)
-		var weapons []GachaPoolItem
-		for _, se := range shopEntries {
-			if se.WeaponId != 0 && !linkedWeapons[se.WeaponId] && !seenWeapon[se.WeaponId] {
-				if item, ok := pool.WeaponById[se.WeaponId]; ok {
-					weapons = append(weapons, item)
-					seenWeapon[se.WeaponId] = true
+		if len(costumes) == 0 && len(weapons) == 0 && entry.MedalConsumableItemId != 0 {
+			if shopEntries, ok := pool.ShopFeaturedByMedal[entry.MedalConsumableItemId]; ok {
+				costumes, weapons = pool.featuredFromShop(shopEntries)
+				if len(costumes) > 0 || len(weapons) > 0 {
+					fromShop++
 				}
 			}
 		}
+		if len(costumes) == 0 && len(weapons) == 0 {
+			continue
+		}
+		sort.Slice(costumes, func(i, j int) bool { return costumes[i].PossessionId < costumes[j].PossessionId })
+		sort.Slice(weapons, func(i, j int) bool { return weapons[i].PossessionId < weapons[j].PossessionId })
 
 		pool.FeaturedByGacha[entry.GachaId] = FeaturedSet{Costumes: costumes, Weapons: weapons}
 		matched++
 	}
-	log.Printf("[GachaPool] featured mapping: %d/%d banners matched via shop", matched, len(entries))
+	log.Printf("[GachaPool] featured per banner: %d/%d (term-match + %d from shop-fallback)",
+		matched, gachaEligible, fromShop)
+}
+
+func (pool *GachaCatalog) unionTermFeatured(startDatetime int64) (costumes, weapons []GachaPoolItem) {
+	coTerms := pool.TermsByStartDatetime[startDatetime]
+	if len(coTerms) == 0 {
+		return nil, nil
+	}
+	seenCostume := make(map[int32]bool)
+	seenWeapon := make(map[int32]bool)
+	for _, t := range coTerms {
+		if t.TermId == StandardPoolTermId {
+			continue
+		}
+		for _, c := range t.Costumes {
+			if c.RarityType < model.RaritySRare || seenCostume[c.PossessionId] {
+				continue
+			}
+			costumes = append(costumes, c)
+			seenCostume[c.PossessionId] = true
+		}
+		for _, w := range t.Weapons {
+			if w.RarityType < model.RaritySRare || seenWeapon[w.PossessionId] {
+				continue
+			}
+			weapons = append(weapons, w)
+			seenWeapon[w.PossessionId] = true
+		}
+	}
+	return costumes, weapons
+}
+
+func (pool *GachaCatalog) featuredFromShop(shopEntries []ShopFeaturedEntry) (costumes, weapons []GachaPoolItem) {
+	seenCostume := make(map[int32]bool)
+	seenWeapon := make(map[int32]bool)
+	linkedWeapons := make(map[int32]bool)
+	for _, se := range shopEntries {
+		if se.CostumeId == 0 || seenCostume[se.CostumeId] {
+			continue
+		}
+		if item, ok := pool.CostumeById[se.CostumeId]; ok && item.RarityType >= model.RaritySRare {
+			costumes = append(costumes, item)
+			seenCostume[se.CostumeId] = true
+			linkedWeapons[se.WeaponId] = true
+		}
+	}
+	for _, se := range shopEntries {
+		if se.WeaponId == 0 || linkedWeapons[se.WeaponId] || seenWeapon[se.WeaponId] {
+			continue
+		}
+		if item, ok := pool.WeaponById[se.WeaponId]; ok && item.RarityType >= model.RaritySRare {
+			weapons = append(weapons, item)
+			seenWeapon[se.WeaponId] = true
+		}
+	}
+	return costumes, weapons
 }
 
 func (pool *GachaCatalog) BuildBannerPools(entries []store.GachaCatalogEntry) {
-	allFeaturedCostumes := make(map[int32]bool)
-	allFeaturedWeapons := make(map[int32]bool)
-	for _, fs := range pool.FeaturedByGacha {
-		for _, c := range fs.Costumes {
-			allFeaturedCostumes[c.PossessionId] = true
-			allFeaturedWeapons[pool.CostumeWeaponMap[c.PossessionId]] = true
-		}
-		for _, w := range fs.Weapons {
-			allFeaturedWeapons[w.PossessionId] = true
-		}
-	}
-
-	commonCostumes := make(map[int32][]GachaPoolItem)
-	for rarity, items := range pool.CostumesByRarity {
-		for _, item := range items {
-			if !allFeaturedCostumes[item.PossessionId] {
-				commonCostumes[rarity] = append(commonCostumes[rarity], item)
-			}
-		}
-	}
-	commonWeapons := make(map[int32][]GachaPoolItem)
-	for rarity, items := range pool.WeaponsByRarity {
-		for _, item := range items {
-			if !allFeaturedWeapons[item.PossessionId] {
-				commonWeapons[rarity] = append(commonWeapons[rarity], item)
-			}
-		}
-	}
-
-	commonPool := &BannerPool{
-		CostumesByRarity: commonCostumes,
-		WeaponsByRarity:  commonWeapons,
-	}
-
 	pool.BannerPools = make(map[int32]*BannerPool)
 	for _, entry := range entries {
 		fs, hasFeatured := pool.FeaturedByGacha[entry.GachaId]
-		if !hasFeatured {
-			pool.BannerPools[entry.GachaId] = commonPool
-			continue
-		}
+
+		bannerCostumes := cloneRarityMap(pool.StandardCostumesByRarity)
+		bannerWeapons := cloneRarityMap(pool.StandardWeaponsByRarity)
 
 		var allFeatured []GachaPoolItem
-		bannerCostumes := make(map[int32][]GachaPoolItem)
-		for rarity, items := range commonCostumes {
-			bannerCostumes[rarity] = append(bannerCostumes[rarity], items...)
+		if hasFeatured {
+			for _, c := range fs.Costumes {
+				bannerCostumes[c.RarityType] = append(bannerCostumes[c.RarityType], c)
+				allFeatured = append(allFeatured, c)
+				if wid, ok := pool.CostumeWeaponMap[c.PossessionId]; ok {
+					if w, ok := pool.WeaponById[wid]; ok {
+						bannerWeapons[w.RarityType] = append(bannerWeapons[w.RarityType], w)
+						allFeatured = append(allFeatured, w)
+					}
+				}
+			}
+			for _, w := range fs.Weapons {
+				bannerWeapons[w.RarityType] = append(bannerWeapons[w.RarityType], w)
+				allFeatured = append(allFeatured, w)
+			}
 		}
-		bannerWeapons := make(map[int32][]GachaPoolItem)
-		for rarity, items := range commonWeapons {
-			bannerWeapons[rarity] = append(bannerWeapons[rarity], items...)
-		}
-		for _, c := range fs.Costumes {
-			bannerCostumes[c.RarityType] = append(bannerCostumes[c.RarityType], c)
-			allFeatured = append(allFeatured, c)
-			wid := pool.CostumeWeaponMap[c.PossessionId]
-			w := pool.WeaponById[wid]
-			bannerWeapons[w.RarityType] = append(bannerWeapons[w.RarityType], w)
-			allFeatured = append(allFeatured, w)
-		}
-		for _, w := range fs.Weapons {
-			bannerWeapons[w.RarityType] = append(bannerWeapons[w.RarityType], w)
-			allFeatured = append(allFeatured, w)
-		}
-
 		pool.BannerPools[entry.GachaId] = &BannerPool{
 			CostumesByRarity: bannerCostumes,
 			WeaponsByRarity:  bannerWeapons,
 			Featured:         allFeatured,
 		}
 	}
+	log.Printf("[GachaPool] banner pools: %d banners built from standard pool + per-banner featured", len(pool.BannerPools))
+}
 
-	log.Printf("[GachaPool] banner pools: %d banners, %d featured costumes stripped, %d featured weapons stripped",
-		len(pool.BannerPools), len(allFeaturedCostumes), len(allFeaturedWeapons))
+func cloneRarityMap(src map[int32][]GachaPoolItem) map[int32][]GachaPoolItem {
+	dst := make(map[int32][]GachaPoolItem, len(src))
+	for k, v := range src {
+		dst[k] = append([]GachaPoolItem(nil), v...)
+	}
+	return dst
 }
 
 func buildEvolvedWeaponSet(rows []EntityMWeaponEvolutionGroup) map[int32]bool {

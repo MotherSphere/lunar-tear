@@ -74,6 +74,17 @@ mkdir -p db
 goose -dir migrations -allow-missing sqlite3 db/game.db up
 ```
 
+### Backups & Restore
+
+The wizard backs up your save every time you launch it. To roll back to an earlier save:
+
+```bash
+cd server
+make restore
+```
+
+Pick a backup from the list and confirm.
+
 ### Importing a Snapshot
 
 To import a JSON snapshot into the database, use the import tool. The `--uuid` flag must match the UUID your game client sends during authentication:
@@ -276,6 +287,7 @@ All targets run from the `server/` directory.
 | `make clean`   | Remove the `bin/` directory                              |
 | `make dev`     | Run all three services with one command                  |
 | `make migrate` | Run goose migrations on `db/game.db`                    |
+| `make restore` | Interactive restore of `db/game.db` from `db/backups/`   |
 | `make import`  | Import a snapshot (`SNAPSHOT=... UUID=...` required)     |
 
 ## Claim Account

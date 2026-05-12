@@ -51,6 +51,9 @@ dev:
 migrate:
 	$(GOOSE) -dir migrations -allow-missing sqlite3 db/game.db up
 
+restore:
+	go run ./cmd/wizard-restore
+
 import:
 ifndef SNAPSHOT
 	$(error SNAPSHOT is required, e.g. make import SNAPSHOT=snapshots/scene_1.json UUID=...)
@@ -60,4 +63,4 @@ ifndef UUID
 endif
 	go run ./cmd/import-snapshot --snapshot $(SNAPSHOT) --uuid $(UUID)
 
-.PHONY: proto build build-cdn build-auth build-import build-claim-account build-register-account build-dev build-all clean dev migrate import
+.PHONY: proto build build-cdn build-auth build-import build-claim-account build-register-account build-dev build-all clean dev migrate restore import

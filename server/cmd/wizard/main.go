@@ -79,6 +79,7 @@ func main() {
 		validateTools()
 		validateProtocIncludes()
 		runProtoc()
+		backupGameDB()
 		runMigrate()
 		downloadDeps()
 	}
