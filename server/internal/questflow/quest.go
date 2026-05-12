@@ -122,6 +122,7 @@ func snapshotMainQuestIfNeeded(user *store.UserState) {
 		MainQuestSeasonId:       user.MainQuest.MainQuestSeasonId,
 		IsReachedLastQuestScene: user.MainQuest.IsReachedLastQuestScene,
 		PortalCageInProgress:    user.PortalCageStatus.IsCurrentProgress,
+		CurrentQuestFlowType:    user.MainQuest.CurrentQuestFlowType,
 	}
 }
 
@@ -270,13 +271,14 @@ func (h *QuestHandler) HandleQuestFinish(user *store.UserState, questId int32, i
 		user.MainQuest.CurrentMainQuestRouteId = ctx.CurrentMainQuestRouteId
 		user.MainQuest.MainQuestSeasonId = ctx.MainQuestSeasonId
 		user.MainQuest.IsReachedLastQuestScene = ctx.IsReachedLastQuestScene
+		user.MainQuest.CurrentQuestFlowType = ctx.CurrentQuestFlowType
 		user.PortalCageStatus.IsCurrentProgress = ctx.PortalCageInProgress
 		user.PortalCageStatus.LatestVersion = nowMillis
 		user.MainQuest.SavedContext = store.SavedQuestContext{}
 		user.MainQuest.LatestVersion = nowMillis
-		log.Printf("[HandleQuestFinish] restored snapshot for quest %d (route=%d season=%d scene=%d head=%d cage=%v)",
+		log.Printf("[HandleQuestFinish] restored snapshot for quest %d (route=%d season=%d scene=%d head=%d cage=%v flow=%d)",
 			questId, ctx.CurrentMainQuestRouteId, ctx.MainQuestSeasonId,
-			ctx.CurrentQuestSceneId, ctx.HeadQuestSceneId, ctx.PortalCageInProgress)
+			ctx.CurrentQuestSceneId, ctx.HeadQuestSceneId, ctx.PortalCageInProgress, ctx.CurrentQuestFlowType)
 	}
 
 	h.clearQuestMissions(user, questId, nowMillis)

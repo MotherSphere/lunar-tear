@@ -131,7 +131,7 @@ func load1to1(db *sql.DB, uid int64, u *store.UserState) {
 		progress_quest_flow_type, main_quest_season_id, latest_version,
 		saved_ctx_active, saved_ctx_current_quest_scene_id, saved_ctx_head_quest_scene_id,
 		saved_ctx_current_main_quest_route_id, saved_ctx_main_quest_season_id,
-		saved_ctx_is_reached_last_quest_scene, saved_ctx_portal_cage_in_progress,
+		saved_ctx_is_reached_last_quest_scene, saved_ctx_portal_cage_in_progress, saved_ctx_current_quest_flow_type,
 		replay_flow_current_quest_scene_id, replay_flow_head_quest_scene_id
 		FROM user_main_quest WHERE user_id=?`, uid).
 		Scan(&u.MainQuest.CurrentQuestFlowType, &u.MainQuest.CurrentMainQuestRouteId, &u.MainQuest.CurrentQuestSceneId,
@@ -139,7 +139,7 @@ func load1to1(db *sql.DB, uid int64, u *store.UserState) {
 			&u.MainQuest.ProgressQuestFlowType, &u.MainQuest.MainQuestSeasonId, &u.MainQuest.LatestVersion,
 			&ctxActive, &u.MainQuest.SavedContext.CurrentQuestSceneId, &u.MainQuest.SavedContext.HeadQuestSceneId,
 			&u.MainQuest.SavedContext.CurrentMainQuestRouteId, &u.MainQuest.SavedContext.MainQuestSeasonId,
-			&ctxIsLast, &ctxCage,
+			&ctxIsLast, &ctxCage, &u.MainQuest.SavedContext.CurrentQuestFlowType,
 			&u.MainQuest.ReplayFlowCurrentQuestSceneId, &u.MainQuest.ReplayFlowHeadQuestSceneId)
 	u.MainQuest.IsReachedLastQuestScene = b != 0
 	u.MainQuest.SavedContext.Active = ctxActive != 0

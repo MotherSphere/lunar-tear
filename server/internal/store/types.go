@@ -530,6 +530,7 @@ type SavedQuestContext struct {
 	MainQuestSeasonId       int32
 	IsReachedLastQuestScene bool
 	PortalCageInProgress    bool
+	CurrentQuestFlowType    int32
 }
 
 type EventQuestState struct {
