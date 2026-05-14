@@ -97,6 +97,7 @@ func SeedUserState(userId int64, uuid string, nowMillis int64, platform model.Cl
 		Companions:               make(map[string]CompanionState),
 		DeckCharacters:           make(map[string]DeckCharacterState),
 		Decks:                    make(map[DeckKey]DeckState),
+		TripleDecks:              make(map[DeckKey]TripleDeckState),
 		DeckSubWeapons:           make(map[string][]string),
 		DeckParts:                make(map[string][]string),
 		Quests:                   make(map[int32]UserQuestState),

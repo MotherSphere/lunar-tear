@@ -14,6 +14,7 @@ func CloneUserState(u UserState) UserState {
 	out.DeckSubWeapons = cloneSliceMap(u.DeckSubWeapons)
 	out.DeckParts = cloneSliceMap(u.DeckParts)
 	out.Decks = maps.Clone(u.Decks)
+	out.TripleDecks = maps.Clone(u.TripleDecks)
 	out.Quests = maps.Clone(u.Quests)
 	out.QuestMissions = maps.Clone(u.QuestMissions)
 	out.WeaponStories = maps.Clone(u.WeaponStories)

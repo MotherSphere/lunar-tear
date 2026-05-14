@@ -13,6 +13,10 @@ func init() {
 		s, _ := utils.EncodeJSONMaps(sortedDeckRecords(user)...)
 		return s
 	})
+	register("IUserTripleDeck", func(user store.UserState) string {
+		s, _ := utils.EncodeJSONMaps(sortedTripleDeckRecords(user)...)
+		return s
+	})
 	register("IUserDeckCharacter", func(user store.UserState) string {
 		s, _ := utils.EncodeJSONMaps(sortedDeckCharacterRecords(user)...)
 		return s
@@ -63,6 +67,35 @@ func sortedDeckRecords(user store.UserState) []map[string]any {
 			"name":                    row.Name,
 			"power":                   row.Power,
 			"latestVersion":           row.LatestVersion,
+		})
+	}
+	return records
+}
+
+func sortedTripleDeckRecords(user store.UserState) []map[string]any {
+	keys := make([]store.DeckKey, 0, len(user.TripleDecks))
+	for key := range user.TripleDecks {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].DeckType != keys[j].DeckType {
+			return keys[i].DeckType < keys[j].DeckType
+		}
+		return keys[i].UserDeckNumber < keys[j].UserDeckNumber
+	})
+
+	records := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		row := user.TripleDecks[key]
+		records = append(records, map[string]any{
+			"userId":         user.UserId,
+			"deckType":       int32(row.DeckType),
+			"userDeckNumber": row.UserDeckNumber,
+			"name":           row.Name,
+			"deckNumber01":   row.DeckNumber01,
+			"deckNumber02":   row.DeckNumber02,
+			"deckNumber03":   row.DeckNumber03,
+			"latestVersion":  row.LatestVersion,
 		})
 	}
 	return records

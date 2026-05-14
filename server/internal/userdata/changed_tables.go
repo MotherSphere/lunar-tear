@@ -188,6 +188,9 @@ func ChangedTables(before, after *store.UserState) []string {
 	if !mapsEqualStruct(before.Decks, after.Decks) {
 		add("IUserDeck")
 	}
+	if !mapsEqualStruct(before.TripleDecks, after.TripleDecks) {
+		add("IUserTripleDeck")
+	}
 	if !mapsEqualSliceValues(before.DeckSubWeapons, after.DeckSubWeapons) {
 		add("IUserDeckSubWeaponGroup")
 	}
@@ -357,6 +360,8 @@ func keyFieldsForTable(table string) []string {
 	case "IUserDeckCharacter":
 		return []string{"userId", "userDeckCharacterUuid"}
 	case "IUserDeck":
+		return []string{"userId", "deckType", "userDeckNumber"}
+	case "IUserTripleDeck":
 		return []string{"userId", "deckType", "userDeckNumber"}
 	case "IUserDeckSubWeaponGroup":
 		return []string{"userId", "userDeckCharacterUuid", "sortOrder"}

@@ -43,6 +43,7 @@ func initMaps(u *store.UserState) {
 	u.Thoughts = make(map[string]store.ThoughtState)
 	u.DeckCharacters = make(map[string]store.DeckCharacterState)
 	u.Decks = make(map[store.DeckKey]store.DeckState)
+	u.TripleDecks = make(map[store.DeckKey]store.TripleDeckState)
 	u.DeckSubWeapons = make(map[string][]string)
 	u.DeckParts = make(map[string][]string)
 	u.Quests = make(map[int32]store.UserQuestState)
@@ -297,6 +298,16 @@ func loadMapTables(db *sql.DB, uid int64, u *store.UserState) {
 				&v.UserDeckCharacterUuid03, &v.Name, &v.Power, &v.LatestVersion)
 			v.DeckType = model.DeckType(dt)
 			u.Decks[store.DeckKey{DeckType: v.DeckType, UserDeckNumber: v.UserDeckNumber}] = v
+		})
+
+	queryRows(db, `SELECT deck_type, user_deck_number, name, deck_number01, deck_number02, deck_number03, latest_version
+		FROM user_triple_decks WHERE user_id=?`, uid,
+		func(rows *sql.Rows) {
+			var v store.TripleDeckState
+			var dt int32
+			rows.Scan(&dt, &v.UserDeckNumber, &v.Name, &v.DeckNumber01, &v.DeckNumber02, &v.DeckNumber03, &v.LatestVersion)
+			v.DeckType = model.DeckType(dt)
+			u.TripleDecks[store.DeckKey{DeckType: v.DeckType, UserDeckNumber: v.UserDeckNumber}] = v
 		})
 
 	queryRows(db, `SELECT user_deck_character_uuid, ordinal, user_weapon_uuid

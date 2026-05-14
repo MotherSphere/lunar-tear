@@ -166,6 +166,10 @@ func (h *QuestHandler) applyExpRewards(user *store.UserState, questId int32, now
 		return
 	}
 
+	if questDef.CharacterExp == 0 && questDef.CostumeExp == 0 {
+		return
+	}
+
 	deckCostumeUuids, deckCharacterIds := h.resolveDeckUnits(user, questId)
 	if deckCostumeUuids == nil {
 		log.Printf("[applyExpRewards] questId=%d skipping character/costume exp (deck not resolved)", questId)

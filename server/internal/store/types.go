@@ -70,6 +70,7 @@ type UserState struct {
 	Thoughts              map[string]ThoughtState
 	DeckCharacters        map[string]DeckCharacterState
 	Decks                 map[DeckKey]DeckState
+	TripleDecks           map[DeckKey]TripleDeckState
 	Quests                map[int32]UserQuestState
 	QuestMissions         map[QuestMissionKey]UserQuestMissionState
 	Missions              map[int32]UserMissionState
@@ -141,6 +142,9 @@ func (u *UserState) EnsureMaps() {
 	}
 	if u.Decks == nil {
 		u.Decks = make(map[DeckKey]DeckState)
+	}
+	if u.TripleDecks == nil {
+		u.TripleDecks = make(map[DeckKey]TripleDeckState)
 	}
 	if u.DeckSubWeapons == nil {
 		u.DeckSubWeapons = make(map[string][]string)
@@ -453,6 +457,16 @@ type DeckState struct {
 	Name                    string
 	Power                   int32
 	LatestVersion           int64
+}
+
+type TripleDeckState struct {
+	DeckType       model.DeckType
+	UserDeckNumber int32
+	Name           string
+	DeckNumber01   int32
+	DeckNumber02   int32
+	DeckNumber03   int32
+	LatestVersion  int64
 }
 
 type DeckCharacterInput struct {

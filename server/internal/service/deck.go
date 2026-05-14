@@ -191,9 +191,43 @@ func (s *DeckServiceServer) ReplaceTripleDeck(ctx context.Context, req *pb.Repla
 			}
 			store.ApplyDeckReplacement(user, model.DeckType(detail.DeckType), detail.UserDeckNumber, deckSlotsFromProto(detail.Deck), nowMillis)
 		}
+
+		key := store.DeckKey{DeckType: model.DeckType(req.DeckType), UserDeckNumber: req.UserDeckNumber}
+		td := user.TripleDecks[key]
+		td.DeckType = model.DeckType(req.DeckType)
+		td.UserDeckNumber = req.UserDeckNumber
+		td.DeckNumber01 = innerDeckNumber(req.DeckDetail01)
+		td.DeckNumber02 = innerDeckNumber(req.DeckDetail02)
+		td.DeckNumber03 = innerDeckNumber(req.DeckDetail03)
+		td.LatestVersion = nowMillis
+		user.TripleDecks[key] = td
 	})
 
 	return &pb.ReplaceTripleDeckResponse{}, nil
+}
+
+func innerDeckNumber(d *pb.DeckDetail) int32 {
+	if d == nil {
+		return 0
+	}
+	return d.UserDeckNumber
+}
+
+func (s *DeckServiceServer) UpdateTripleDeckName(ctx context.Context, req *pb.UpdateTripleDeckNameRequest) (*pb.UpdateTripleDeckNameResponse, error) {
+	log.Printf("[DeckService] UpdateTripleDeckName: deckType=%d deckNumber=%d name=%q", req.DeckType, req.UserDeckNumber, req.Name)
+	userId := CurrentUserId(ctx, s.users, s.sessions)
+
+	s.users.UpdateUser(userId, func(user *store.UserState) {
+		key := store.DeckKey{DeckType: model.DeckType(req.DeckType), UserDeckNumber: req.UserDeckNumber}
+		td := user.TripleDecks[key]
+		td.DeckType = model.DeckType(req.DeckType)
+		td.UserDeckNumber = req.UserDeckNumber
+		td.Name = req.Name
+		td.LatestVersion = gametime.NowMillis()
+		user.TripleDecks[key] = td
+	})
+
+	return &pb.UpdateTripleDeckNameResponse{}, nil
 }
 
 func (s *DeckServiceServer) ReplaceMultiDeck(ctx context.Context, req *pb.ReplaceMultiDeckRequest) (*pb.ReplaceMultiDeckResponse, error) {

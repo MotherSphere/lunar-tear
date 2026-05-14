@@ -171,6 +171,12 @@ func writeUserState(tx *sql.Tx, uid int64, u *store.UserState) error {
 			return err
 		}
 	}
+	for k, v := range u.TripleDecks {
+		if err := exec(`INSERT INTO user_triple_decks (user_id, deck_type, user_deck_number, name, deck_number01, deck_number02, deck_number03, latest_version) VALUES (?,?,?,?,?,?,?,?)`,
+			uid, int32(k.DeckType), k.UserDeckNumber, v.Name, v.DeckNumber01, v.DeckNumber02, v.DeckNumber03, v.LatestVersion); err != nil {
+			return err
+		}
+	}
 	for key, uuids := range u.DeckSubWeapons {
 		for i, uuid := range uuids {
 			if err := exec(`INSERT INTO user_deck_sub_weapons (user_id, user_deck_character_uuid, ordinal, user_weapon_uuid) VALUES (?,?,?,?)`,
@@ -710,6 +716,18 @@ func diffAndSave(tx *sql.Tx, uid int64, before, after *store.UserState) error {
 	for k := range before.Decks {
 		if _, ok := after.Decks[k]; !ok {
 			exec(`DELETE FROM user_decks WHERE user_id=? AND deck_type=? AND user_deck_number=?`, uid, int32(k.DeckType), k.UserDeckNumber)
+		}
+	}
+
+	for k, v := range after.TripleDecks {
+		if old, ok := before.TripleDecks[k]; !ok || old != v {
+			exec(`INSERT OR REPLACE INTO user_triple_decks (user_id, deck_type, user_deck_number, name, deck_number01, deck_number02, deck_number03, latest_version) VALUES (?,?,?,?,?,?,?,?)`,
+				uid, int32(k.DeckType), k.UserDeckNumber, v.Name, v.DeckNumber01, v.DeckNumber02, v.DeckNumber03, v.LatestVersion)
+		}
+	}
+	for k := range before.TripleDecks {
+		if _, ok := after.TripleDecks[k]; !ok {
+			exec(`DELETE FROM user_triple_decks WHERE user_id=? AND deck_type=? AND user_deck_number=?`, uid, int32(k.DeckType), k.UserDeckNumber)
 		}
 	}
 
