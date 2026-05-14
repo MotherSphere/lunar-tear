@@ -6,6 +6,8 @@ import (
 	"log"
 
 	pb "lunar-tear/server/gen/proto"
+	"lunar-tear/server/internal/gametime"
+	"lunar-tear/server/internal/model"
 	"lunar-tear/server/internal/runtime"
 	"lunar-tear/server/internal/store"
 )
@@ -19,6 +21,49 @@ type ConsumableItemServiceServer struct {
 
 func NewConsumableItemServiceServer(users store.UserRepository, sessions store.SessionRepository, holder *runtime.Holder) *ConsumableItemServiceServer {
 	return &ConsumableItemServiceServer{users: users, sessions: sessions, holder: holder}
+}
+
+func (s *ConsumableItemServiceServer) UseEffectItem(ctx context.Context, req *pb.ConsumableItemUseEffectItemRequest) (*pb.ConsumableItemUseEffectItemResponse, error) {
+	log.Printf("[ConsumableItemService] UseEffectItem: consumableItemId=%d count=%d", req.ConsumableItemId, req.Count)
+
+	cat := s.holder.Get()
+	catalog := cat.ConsumableItem
+	userId := CurrentUserId(ctx, s.users, s.sessions)
+	nowMillis := gametime.NowMillis()
+
+	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+		if _, ok := catalog.All[req.ConsumableItemId]; !ok {
+			log.Printf("[ConsumableItemService] UseEffectItem: unknown consumableItemId=%d", req.ConsumableItemId)
+			return
+		}
+		cur := user.ConsumableItems[req.ConsumableItemId]
+		if cur < req.Count {
+			log.Printf("[ConsumableItemService] UseEffectItem: insufficient consumableItemId=%d have=%d need=%d", req.ConsumableItemId, cur, req.Count)
+			return
+		}
+
+		user.ConsumableItems[req.ConsumableItemId] -= req.Count
+		if user.ConsumableItems[req.ConsumableItemId] <= 0 {
+			delete(user.ConsumableItems, req.ConsumableItemId)
+		}
+
+		maxStaminaMillis := cat.Shop.MaxStaminaMillis[user.Status.Level]
+		for _, effect := range catalog.Effects[req.ConsumableItemId] {
+			switch effect.EffectTargetType {
+			case model.EffectTargetStaminaRecovery:
+				millis := store.ResolveStaminaEffectMillis(effect.EffectValueType, effect.EffectValue, maxStaminaMillis)
+				store.RecoverStamina(user, millis*req.Count, maxStaminaMillis, nowMillis)
+			default:
+				log.Printf("[ConsumableItemService] UseEffectItem: unhandled effect targetType=%d valueType=%d value=%d itemId=%d",
+					effect.EffectTargetType, effect.EffectValueType, effect.EffectValue, req.ConsumableItemId)
+			}
+		}
+	})
+	if err != nil {
+		return nil, fmt.Errorf("consumable item use effect item: %w", err)
+	}
+
+	return &pb.ConsumableItemUseEffectItemResponse{}, nil
 }
 
 func (s *ConsumableItemServiceServer) Sell(ctx context.Context, req *pb.ConsumableItemSellRequest) (*pb.ConsumableItemSellResponse, error) {

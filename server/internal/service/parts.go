@@ -26,6 +26,50 @@ func NewPartsServiceServer(users store.UserRepository, sessions store.SessionRep
 	return &PartsServiceServer{users: users, sessions: sessions, holder: holder}
 }
 
+func (s *PartsServiceServer) Protect(ctx context.Context, req *pb.PartsProtectRequest) (*pb.PartsProtectResponse, error) {
+	log.Printf("[PartsService] Protect: uuids=%v", req.UserPartsUuid)
+
+	userId := CurrentUserId(ctx, s.users, s.sessions)
+	nowMillis := gametime.NowMillis()
+
+	s.users.UpdateUser(userId, func(user *store.UserState) {
+		for _, uuid := range req.UserPartsUuid {
+			part, ok := user.Parts[uuid]
+			if !ok {
+				log.Printf("[PartsService] Protect: part uuid=%s not found", uuid)
+				continue
+			}
+			part.IsProtected = true
+			part.LatestVersion = nowMillis
+			user.Parts[uuid] = part
+		}
+	})
+
+	return &pb.PartsProtectResponse{}, nil
+}
+
+func (s *PartsServiceServer) Unprotect(ctx context.Context, req *pb.PartsUnprotectRequest) (*pb.PartsUnprotectResponse, error) {
+	log.Printf("[PartsService] Unprotect: uuids=%v", req.UserPartsUuid)
+
+	userId := CurrentUserId(ctx, s.users, s.sessions)
+	nowMillis := gametime.NowMillis()
+
+	s.users.UpdateUser(userId, func(user *store.UserState) {
+		for _, uuid := range req.UserPartsUuid {
+			part, ok := user.Parts[uuid]
+			if !ok {
+				log.Printf("[PartsService] Unprotect: part uuid=%s not found", uuid)
+				continue
+			}
+			part.IsProtected = false
+			part.LatestVersion = nowMillis
+			user.Parts[uuid] = part
+		}
+	})
+
+	return &pb.PartsUnprotectResponse{}, nil
+}
+
 func (s *PartsServiceServer) Sell(ctx context.Context, req *pb.PartsSellRequest) (*pb.PartsSellResponse, error) {
 	log.Printf("[PartsService] Sell: %d part(s)", len(req.UserPartsUuid))
 

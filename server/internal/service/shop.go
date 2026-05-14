@@ -194,22 +194,10 @@ func applyShopContentEffects(catalog *masterdata.ShopCatalog, user *store.UserSt
 		switch effect.EffectTargetType {
 		case model.EffectTargetStaminaRecovery:
 			maxMillis := catalog.MaxStaminaMillis[user.Status.Level]
-			millis := resolveShopEffectMillis(catalog, effect.EffectValueType, effect.EffectValue, user.Status.Level)
+			millis := store.ResolveStaminaEffectMillis(effect.EffectValueType, effect.EffectValue, maxMillis)
 			store.RecoverStamina(user, millis*qty, maxMillis, nowMillis)
 		default:
 			log.Printf("[ShopService] unhandled effect: shopItemId=%d targetType=%d", shopItemId, effect.EffectTargetType)
 		}
-	}
-}
-
-func resolveShopEffectMillis(catalog *masterdata.ShopCatalog, effectValueType, effectValue, userLevel int32) int32 {
-	switch effectValueType {
-	case model.EffectValueFixed:
-		return effectValue
-	case model.EffectValuePermil:
-		maxMillis := catalog.MaxStaminaMillis[userLevel]
-		return effectValue * maxMillis / 1000
-	default:
-		return 0
 	}
 }

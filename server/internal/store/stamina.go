@@ -1,6 +1,10 @@
 package store
 
-import "log"
+import (
+	"log"
+
+	"lunar-tear/server/internal/model"
+)
 
 const StaminaRecoveryDivisor int64 = 180
 
@@ -38,4 +42,15 @@ func ReplenishStamina(user *UserState, maxStaminaMillis int32, nowMillis int64) 
 	user.Status.StaminaMilliValue = maxStaminaMillis
 	user.Status.StaminaUpdateDatetime = nowMillis
 	log.Printf("[ReplenishStamina] set to %d", maxStaminaMillis)
+}
+
+func ResolveStaminaEffectMillis(effectValueType, effectValue, maxStaminaMillis int32) int32 {
+	switch effectValueType {
+	case model.EffectValueFixed:
+		return effectValue * 1000
+	case model.EffectValuePermil:
+		return effectValue * maxStaminaMillis / 1000
+	default:
+		return 0
+	}
 }
