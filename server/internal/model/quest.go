@@ -164,6 +164,20 @@ type SideStoryQuestStateType int32
 
 const (
 	SideStoryQuestStateUnknown SideStoryQuestStateType = 0
-	SideStoryQuestStateActive  SideStoryQuestStateType = 1
-	SideStoryQuestStateCleared SideStoryQuestStateType = 2
+	SideStoryQuestStateActive  SideStoryQuestStateType = 2
+	SideStoryQuestStateCleared SideStoryQuestStateType = 3
+)
+
+type SideStorySceneIdType int32
+
+// Values mirror SideStoryTypes.SceneIdTypes in the client (dump.cs).
+const (
+	SideStorySceneInvalid                SideStorySceneIdType = 0
+	SideStorySceneIntroduction           SideStorySceneIdType = 1
+	SideStoryScenePlayGeneralQuest       SideStorySceneIdType = 2
+	SideStorySceneUnlockLastQuest        SideStorySceneIdType = 3
+	SideStoryScenePlayLastQuest          SideStorySceneIdType = 4
+	SideStorySceneOutroduction           SideStorySceneIdType = 5
+	SideStorySceneShowCostumeAcquisition SideStorySceneIdType = 6
+	SideStoryScenePlayFreeQuest          SideStorySceneIdType = 7
 )

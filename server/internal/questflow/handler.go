@@ -25,13 +25,23 @@ type FinishOutcome struct {
 
 type QuestHandler struct {
 	*masterdata.QuestCatalog
-	Config  *masterdata.GameConfig
-	Granter *store.PossessionGranter
+	Config                         *masterdata.GameConfig
+	Granter                        *store.PossessionGranter
+	SideStoryChapterByEventQuestId map[int32]int32
 }
 
-func NewQuestHandler(catalog *masterdata.QuestCatalog, config *masterdata.GameConfig) *QuestHandler {
+func NewQuestHandler(catalog *masterdata.QuestCatalog, config *masterdata.GameConfig, sideStory *masterdata.SideStoryCatalog) *QuestHandler {
 	granter := BuildGranter(catalog)
-	return &QuestHandler{QuestCatalog: catalog, Config: config, Granter: granter}
+	var sideStoryChapters map[int32]int32
+	if sideStory != nil {
+		sideStoryChapters = sideStory.ChapterByEventQuestId
+	}
+	return &QuestHandler{
+		QuestCatalog:                   catalog,
+		Config:                         config,
+		Granter:                        granter,
+		SideStoryChapterByEventQuestId: sideStoryChapters,
+	}
 }
 
 func BuildGranter(catalog *masterdata.QuestCatalog) *store.PossessionGranter {

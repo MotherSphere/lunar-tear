@@ -45,6 +45,7 @@ func (h *QuestHandler) HandleEventQuestFinish(user *store.UserState, eventQuestC
 	outcome := h.evaluateFinishOutcome(user, questId)
 	if !isRetired {
 		h.applyQuestVictory(user, questId, &outcome, nowMillis, false)
+		h.recordSideStoryLimitContentStatus(user, questId, nowMillis)
 	}
 
 	if isRetired && !isAnnihilated && quest.Stamina > 1 {
@@ -62,6 +63,18 @@ func (h *QuestHandler) HandleEventQuestFinish(user *store.UserState, eventQuestC
 	h.clearQuestMissions(user, questId, nowMillis)
 
 	return outcome
+}
+
+func (h *QuestHandler) recordSideStoryLimitContentStatus(user *store.UserState, questId int32, nowMillis int64) {
+	chapterId, ok := h.SideStoryChapterByEventQuestId[questId]
+	if !ok {
+		return
+	}
+	st := user.QuestLimitContentStatus[questId]
+	st.LimitContentQuestStatusType = 1
+	st.EventQuestChapterId = chapterId
+	st.LatestVersion = nowMillis
+	user.QuestLimitContentStatus[questId] = st
 }
 
 func (h *QuestHandler) HandleEventQuestRestart(user *store.UserState, eventQuestChapterId, questId int32, nowMillis int64) {

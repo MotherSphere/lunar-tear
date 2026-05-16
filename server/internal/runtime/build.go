@@ -33,7 +33,8 @@ func buildCatalogs() (*Catalogs, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load quest catalog: %w", err)
 	}
-	questHandler := questflow.NewQuestHandler(questCatalog, gameConfig)
+	sideStoryCatalog := masterdata.LoadSideStoryCatalog()
+	questHandler := questflow.NewQuestHandler(questCatalog, gameConfig, sideStoryCatalog)
 
 	gachaEntries, medalInfo, err := masterdata.LoadGachaCatalog()
 	if err != nil {
@@ -136,7 +137,6 @@ func buildCatalogs() (*Catalogs, error) {
 	}
 	log.Printf("companion catalog loaded: %d companions, %d categories", len(companionCatalog.CompanionById), len(companionCatalog.GoldCostByCategory))
 
-	sideStoryCatalog := masterdata.LoadSideStoryCatalog()
 	bigHuntCatalog := masterdata.LoadBigHuntCatalog()
 
 	return &Catalogs{
