@@ -102,6 +102,7 @@ func FullClientTableMap(user store.UserState) map[string]string {
 		"IUserBigHuntWeeklyStatus":                projectTable("IUserBigHuntWeeklyStatus", user),
 		"IUserFacebook":                           projectTable("IUserFacebook", user),
 		"IUserApple":                              projectTable("IUserApple", user),
+		"IUserWebviewPanelMission":                projectTable("IUserWebviewPanelMission", user),
 	}
 }
 
