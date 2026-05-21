@@ -33,8 +33,26 @@ func sortedQuestRecords(user store.UserState) []map[string]any {
 }
 
 func sortedQuestMissionRecords(user store.UserState) []map[string]any {
-	keys := make([]store.QuestMissionKey, 0, len(user.QuestMissions))
-	for key := range user.QuestMissions {
+	questMissions := make(map[store.QuestMissionKey]store.UserQuestMissionState, len(user.QuestMissions))
+	for key, qm := range user.QuestMissions {
+		questMissions[key] = qm
+	}
+	// Force-clear hidden-story quest-missions so their report gimmicks unlock.
+	for _, key := range hiddenStoryRequirements().QuestMissions {
+		if existing, ok := questMissions[key]; ok && existing.IsClear {
+			continue
+		}
+		questMissions[key] = store.UserQuestMissionState{
+			QuestId:             key.QuestId,
+			QuestMissionId:      key.QuestMissionId,
+			IsClear:             true,
+			LatestClearDatetime: user.GameStartDatetime,
+			LatestVersion:       user.GameStartDatetime,
+		}
+	}
+
+	keys := make([]store.QuestMissionKey, 0, len(questMissions))
+	for key := range questMissions {
 		keys = append(keys, key)
 	}
 	sort.Slice(keys, func(i, j int) bool {
@@ -45,7 +63,7 @@ func sortedQuestMissionRecords(user store.UserState) []map[string]any {
 	})
 	records := make([]map[string]any, 0, len(keys))
 	for _, key := range keys {
-		row := user.QuestMissions[key]
+		row := questMissions[key]
 		records = append(records, map[string]any{
 			"userId":              user.UserId,
 			"questId":             row.QuestId,

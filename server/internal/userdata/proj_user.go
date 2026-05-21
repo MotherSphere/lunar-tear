@@ -2,8 +2,11 @@ package userdata
 
 import (
 	"sort"
+	"sync"
 
 	"lunar-tear/server/internal/gametime"
+	"lunar-tear/server/internal/masterdata"
+	"lunar-tear/server/internal/model"
 	"lunar-tear/server/internal/store"
 	"lunar-tear/server/internal/utils"
 )
@@ -192,16 +195,35 @@ func sortedTutorialRecords(user store.UserState) []map[string]any {
 	return records
 }
 
+var hiddenStoryRequirements = sync.OnceValue(masterdata.LoadHiddenStoryRequirements)
+
 func sortedMissionRecords(user store.UserState) []map[string]any {
-	ids := make([]int, 0, len(user.Missions))
-	for id := range user.Missions {
+	missions := make(map[int32]store.UserMissionState, len(user.Missions))
+	for id, m := range user.Missions {
+		missions[id] = m
+	}
+	for _, missionId := range hiddenStoryRequirements().MissionIds {
+		if existing, ok := missions[missionId]; ok && existing.MissionProgressStatusType >= int32(model.MissionProgressStatusTypeClear) {
+			continue
+		}
+		missions[missionId] = store.UserMissionState{
+			MissionId:                 missionId,
+			StartDatetime:             user.GameStartDatetime,
+			MissionProgressStatusType: int32(model.MissionProgressStatusTypeClear),
+			ClearDatetime:             user.GameStartDatetime,
+			LatestVersion:             user.GameStartDatetime,
+		}
+	}
+
+	ids := make([]int, 0, len(missions))
+	for id := range missions {
 		ids = append(ids, int(id))
 	}
 	sort.Ints(ids)
 
 	records := make([]map[string]any, 0, len(ids))
 	for _, id := range ids {
-		row := user.Missions[int32(id)]
+		row := missions[int32(id)]
 		records = append(records, map[string]any{
 			"userId":                    user.UserId,
 			"missionId":                 row.MissionId,

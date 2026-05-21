@@ -43,6 +43,15 @@ const (
 	QuestResultTypeFullResult QuestResultType = 3
 )
 
+type MissionProgressStatusType int32
+
+const (
+	MissionProgressStatusTypeUnknown        MissionProgressStatusType = 0
+	MissionProgressStatusTypeInProgress     MissionProgressStatusType = 1
+	MissionProgressStatusTypeClear          MissionProgressStatusType = 2
+	MissionProgressStatusTypeRewardReceived MissionProgressStatusType = 9
+)
+
 type QuestSceneType int32
 
 const (

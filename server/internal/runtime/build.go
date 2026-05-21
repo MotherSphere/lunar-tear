@@ -114,7 +114,7 @@ func buildCatalogs() (*Catalogs, error) {
 	}
 	log.Printf("explore catalog loaded: %d explores, %d grade assets", len(exploreCatalog.Explores), len(exploreCatalog.GradeAssets))
 
-	gimmickCatalog, err := masterdata.LoadGimmickCatalog(conditionResolver)
+	gimmickCatalog, err := masterdata.LoadGimmickCatalog(conditionResolver, cageOrnamentCatalog)
 	if err != nil {
 		return nil, fmt.Errorf("load gimmick catalog: %w", err)
 	}

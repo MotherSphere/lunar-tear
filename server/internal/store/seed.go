@@ -8,7 +8,6 @@ const (
 	starterMissionId         = int32(1)
 	starterMainQuestRouteId  = int32(1)
 	starterMainQuestSeasonId = int32(1)
-	missionInProgress        = int32(1)
 
 	defaultBirthYear            = int32(2000)
 	defaultBirthMonth           = int32(1)
@@ -114,7 +113,7 @@ func SeedUserState(userId int64, uuid string, nowMillis int64, platform model.Cl
 			starterMissionId: {
 				MissionId:                 starterMissionId,
 				StartDatetime:             nowMillis,
-				MissionProgressStatusType: missionInProgress,
+				MissionProgressStatusType: int32(model.MissionProgressStatusTypeInProgress),
 			},
 		},
 		Gimmick: GimmickState{

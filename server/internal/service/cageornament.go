@@ -27,10 +27,6 @@ func (s *CageOrnamentServiceServer) ReceiveReward(ctx context.Context, req *pb.R
 
 	cat := s.holder.Get()
 	reward, ok := cat.CageOrnament.LookupReward(req.CageOrnamentId)
-	if !ok {
-		log.Fatalf("[CageOrnamentService] ReceiveReward: no reward for cageOrnamentId=%d", req.CageOrnamentId)
-	}
-	granter := cat.QuestHandler.Granter
 
 	userId := CurrentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
@@ -40,8 +36,20 @@ func (s *CageOrnamentServiceServer) ReceiveReward(ctx context.Context, req *pb.R
 			AcquisitionDatetime: nowMillis,
 			LatestVersion:       nowMillis,
 		}
-		granter.GrantFull(user, model.PossessionType(reward.PossessionType), reward.PossessionId, reward.Count, nowMillis)
+		if ok {
+			cat.QuestHandler.Granter.GrantFull(user, model.PossessionType(reward.PossessionType), reward.PossessionId, reward.Count, nowMillis)
+		}
 	})
+
+	if !ok {
+		// "Fickle Black Birds" (type-1 gimmicks) tap into this RPC with CageOrnamentIds
+		// not present in m_cage_ornament_reward (their GimmickOrnamentViewIds are 101/103,
+		// not the 1002xxx-style ids the table uses). Record the access and return an empty
+		// reward so the client doesn't hang and the server doesn't crash.
+		log.Printf("[CageOrnamentService] ReceiveReward: no reward mapping for cageOrnamentId=%d, returning empty",
+			req.CageOrnamentId)
+		return &pb.ReceiveRewardResponse{}, nil
+	}
 
 	return &pb.ReceiveRewardResponse{
 		CageOrnamentReward: []*pb.CageOrnamentReward{
